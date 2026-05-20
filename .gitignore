@@ -26,3 +26,5 @@ log
 x/
 *.bat
 *.txt
+
+users.json
