@@ -115,9 +115,8 @@ class DNSHECLI:
                 self.config_manager.update_last_used(self.selected_profile_name)
 
             self.dns_manager = DNSManager(self.client)
-            clear_screen()
 
-            # 2. 引导域名选择
+            # 2. 引导域名选择与账户激活卡片展示判断
             domain_name = ""
             domains = []
             if profiles and self.selected_profile_name in profiles:
@@ -126,28 +125,40 @@ class DNSHECLI:
                 
             if isinstance(domains, str):
                 domains = [domains]
-                
-            if not domains:
-                domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
-            elif len(domains) == 1:
+
+            if len(domains) == 1:
+                # 针对单域名用户，直接开启“闪电级”静默分配，完全不展示激活卡片与延迟过场
                 domain_name = domains[0]
-                console.print(f"[bold green][✔] 自动选择管理域名：[cyan]{domain_name}[/cyan][/bold green]")
             else:
-                domain_options = list(domains) + ["➕ 手动输入其它域名"]
-                idx = select_option("请选择要操作的主域名", domain_options)
-                if idx == -1 or idx == len(domains):
+                # 针对多域名或未绑定域名的用户，保留精美的账号激活成功卡片展示，让用户知晓切换进度
+                clear_screen()
+                console.print(Panel(
+                    f"[bold green]✔ 账号激活成功！[/bold green]\n"
+                    f"当前账户: [cyan]{self.selected_profile_name}[/cyan] (Auth ID: {auth_id})",
+                    border_style="green",
+                    expand=False
+                ))
+                
+                if not domains:
                     domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
                 else:
-                    domain_name = domains[idx]
-                    console.print(f"[bold green][✔] 已选择域名：[cyan]{domain_name}[/cyan][/bold green]")
-                    
+                    domain_options = list(domains) + ["➕ 手动输入其它域名"]
+                    idx = select_option("请选择要操作的主域名", domain_options)
+                    if idx == -1 or idx == len(domains):
+                        domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
+                    else:
+                        domain_name = domains[idx]
+                        console.print(f"[bold green][✔] 已选择域名：[cyan]{domain_name}[/cyan][/bold green]")
+                
+                # 给予多域名账号足够的视觉停留反馈时间，便于知晓最终选择的域
+                import time
+                time.sleep(0.8)
+                
             if not domain_name:
                 console.print("[bold red][✘] 域名不能为空。[/bold red]")
                 return
 
-            # 给域名选择结果短暂的视觉停留反馈，再进入控制台主界面
-            import time
-            time.sleep(0.8)
+
 
             # 3. 循环交互主菜单
             menu_options = [
