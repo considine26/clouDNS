@@ -72,104 +72,144 @@ class DNSHECLI:
         self.selected_profile_name: str = ""
 
     def run(self):
-        clear_screen()
-        console.print(Panel.fit(
-            "[bold cyan]ClouDNS DNS 智能 API 管理终端[/bold cyan]\n"
-            "[dim]使用 Rich + Native 键盘交互，快速执行 DNS CRUD 解析操作[/dim]",
-            border_style="magenta"
-        ))
+        while True:
+            clear_screen()
+            console.print(Panel.fit(
+                "[bold cyan]ClouDNS DNS 智能 API 管理终端[/bold cyan]\n"
+                "[dim]使用 Rich + Native 键盘交互，快速执行 DNS CRUD 解析操作[/dim]",
+                border_style="magenta"
+            ))
 
-        # 1. 认证加载
-        profiles = self.config_manager.get_profiles()
-        api_base_url = self.config_manager.get_api_base_url()
+            # 1. 认证加载
+            profiles = self.config_manager.get_profiles()
+            api_base_url = self.config_manager.get_api_base_url()
 
-        if not profiles:
-            console.print("[bold yellow][!] 未在本地 users.json 查找到任何 API Profile。[/bold yellow]")
-            auth_id = Prompt.ask("[bold green]请输入 ClouDNS Auth ID (纯数字)[/bold green]").strip()
-            auth_password = Prompt.ask("[bold green]请输入 ClouDNS API Password[/bold green]", password=True).strip()
-            if not auth_id or not auth_password:
-                console.print("[bold red][✘] Auth ID 或 Password 不能为空，程序退出。[/bold red]")
-                return
-            
-            # 创建临时 Profile
-            self.client = ClouDNSClient(auth_id, auth_password, api_base_url)
-            self.selected_profile_name = "Manual Input"
-        else:
-            profile_names = list(profiles.keys())
-            if len(profile_names) == 1:
-                self.selected_profile_name = profile_names[0]
+            if not profiles:
+                console.print("[bold yellow][!] 未在本地 users.json 查找到任何 API Profile。[/bold yellow]")
+                auth_id = Prompt.ask("[bold green]请输入 ClouDNS Auth ID (纯数字)[/bold green]").strip()
+                auth_password = Prompt.ask("[bold green]请输入 ClouDNS API Password[/bold green]", password=True).strip()
+                if not auth_id or not auth_password:
+                    console.print("[bold red][✘] Auth ID 或 Password 不能为空，程序退出。[/bold red]")
+                    return
+                
+                # 创建临时 Profile
+                self.client = ClouDNSClient(auth_id, auth_password, api_base_url)
+                self.selected_profile_name = "Manual Input"
             else:
-                idx = select_option("请选择 API 账户 Profile", profile_names)
-                if idx == -1:
-                    console.print("[bold yellow][!] 已取消选择，使用默认首个 Profile。[/bold yellow]")
+                profile_names = list(profiles.keys())
+                if len(profile_names) == 1:
                     self.selected_profile_name = profile_names[0]
                 else:
-                    self.selected_profile_name = profile_names[idx]
+                    idx = select_option("请选择 API 账户 Profile", profile_names)
+                    if idx == -1:
+                        console.print("[bold yellow][!] 已取消选择，使用默认首个 Profile。[/bold yellow]")
+                        self.selected_profile_name = profile_names[0]
+                    else:
+                        self.selected_profile_name = profile_names[idx]
 
-            profile = profiles[self.selected_profile_name]
-            auth_id = profile.get("auth_id", "")
-            auth_password = profile.get("auth_password", "")
-            
-            self.client = ClouDNSClient(auth_id, auth_password, api_base_url)
-            self.config_manager.update_last_used(self.selected_profile_name)
-
-        self.dns_manager = DNSManager(self.client)
-        console.print(f"[bold green][✔] 成功激活账号：{self.selected_profile_name} (Auth ID: {auth_id})[/bold green]\n")
-
-        # 2. 引导域名选择
-        domain_name = ""
-        domains = []
-        if profiles and self.selected_profile_name in profiles:
-            profile = profiles[self.selected_profile_name]
-            domains = profile.get("domain_name", [])
-            
-        if isinstance(domains, str):
-            domains = [domains]
-            
-        if not domains:
-            domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
-        elif len(domains) == 1:
-            domain_name = domains[0]
-            console.print(f"[bold green][✔] 自动选择管理域名：[cyan]{domain_name}[/cyan][/bold green]")
-        else:
-            domain_options = list(domains) + ["➕ 手动输入其它域名"]
-            idx = select_option("请选择要操作的主域名", domain_options)
-            if idx == -1 or idx == len(domains):
-                domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
-            else:
-                domain_name = domains[idx]
-                console.print(f"[bold green][✔] 已选择域名：[cyan]{domain_name}[/cyan][/bold green]")
+                profile = profiles[self.selected_profile_name]
+                auth_id = profile.get("auth_id", "")
+                auth_password = profile.get("auth_password", "")
                 
-        if not domain_name:
-            console.print("[bold red][✘] 域名不能为空。[/bold red]")
-            return
+                self.client = ClouDNSClient(auth_id, auth_password, api_base_url)
+                self.config_manager.update_last_used(self.selected_profile_name)
 
+            self.dns_manager = DNSManager(self.client)
+            clear_screen()
+            console.print(Panel(
+                f"[bold green]✔ 账号激活成功！[/bold green]\n"
+                f"当前账户: [cyan]{self.selected_profile_name}[/cyan] (Auth ID: {auth_id})",
+                border_style="green",
+                expand=False
+            ))
 
-        # 3. 循环交互主菜单
-        menu_options = [
-            "📋 列出 DNS 解析记录 (List Records)",
-            "➕ 添加 DNS 解析记录 (Add Record)",
-            "✏️ 修改 DNS 解析记录 (Modify Record)",
-            "❌ 删除 DNS 解析记录 (Delete Record)",
-            "🚪 退出程序 (Exit)"
-        ]
+            # 2. 引导域名选择
+            domain_name = ""
+            domains = []
+            if profiles and self.selected_profile_name in profiles:
+                profile = profiles[self.selected_profile_name]
+                domains = profile.get("domain_name", [])
+                
+            if isinstance(domains, str):
+                domains = [domains]
+                
+            if not domains:
+                domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
+            elif len(domains) == 1:
+                domain_name = domains[0]
+                console.print(f"[bold green][✔] 自动选择管理域名：[cyan]{domain_name}[/cyan][/bold green]")
+            else:
+                domain_options = list(domains) + ["➕ 手动输入其它域名"]
+                idx = select_option("请选择要操作的主域名", domain_options)
+                if idx == -1 or idx == len(domains):
+                    domain_name = Prompt.ask("[bold green]请输入要操作的域名 (例如: example.com)[/bold green]").strip()
+                else:
+                    domain_name = domains[idx]
+                    console.print(f"[bold green][✔] 已选择域名：[cyan]{domain_name}[/cyan][/bold green]")
+                    
+            if not domain_name:
+                console.print("[bold red][✘] 域名不能为空。[/bold red]")
+                return
 
-        while True:
-            # 隔开界面并提供清晰的选单
-            console.print("\n" + "—" * 60)
-            choice_idx = select_option(f"管理域名: {domain_name}", menu_options)
+            # 给域名选择结果短暂的视觉停留反馈，再进入控制台主界面
+            import time
+            time.sleep(0.8)
+
+            # 3. 循环交互主菜单
+            menu_options = [
+                "📋 列出 DNS 解析记录 (List Records)",
+                "➕ 添加 DNS 解析记录 (Add Record)",
+                "✏️ 修改 DNS 解析记录 (Modify Record)",
+                "❌ 删除 DNS 解析记录 (Delete Record)",
+                "🔄 切换 API 账号 (Switch Account)",
+                "🚪 退出程序 (Exit)"
+            ]
+
+            should_exit_app = False
+            while True:
+                clear_screen()
+                console.print(Panel(
+                    f"[bold cyan]ClouDNS 管理控制台[/bold cyan]\n"
+                    f"👤 账号: [yellow]{self.selected_profile_name}[/yellow]  |  🌐 域名: [yellow]{domain_name}[/yellow]",
+                    border_style="magenta",
+                    expand=False
+                ))
+                
+                choice_idx = select_option("请选择操作功能", menu_options)
+                
+                if choice_idx == 0:
+                    clear_screen()
+                    self.list_records(domain_name)
+                    Prompt.ask("\n[dim yellow]按 Enter 键返回主菜单...[/dim yellow]")
+                elif choice_idx == 1:
+                    clear_screen()
+                    self.add_record(domain_name)
+                    Prompt.ask("\n[dim yellow]按 Enter 键返回主菜单...[/dim yellow]")
+                elif choice_idx == 2:
+                    clear_screen()
+                    self.modify_record(domain_name)
+                    Prompt.ask("\n[dim yellow]按 Enter 键返回主菜单...[/dim yellow]")
+                elif choice_idx == 3:
+                    clear_screen()
+                    self.delete_record(domain_name)
+                    Prompt.ask("\n[dim yellow]按 Enter 键返回主菜单...[/dim yellow]")
+                elif choice_idx == 4:
+                    # Switch Account
+                    break
+                elif choice_idx == 5 or choice_idx == -1:
+                    clear_screen()
+                    console.print(Panel(
+                        "[bold magenta]👋 感谢使用 ClouDNS 智能 API 终端管理程序！再见！[/bold magenta]",
+                        border_style="magenta",
+                        expand=False
+                    ))
+                    should_exit_app = True
+                    break
             
-            if choice_idx == 0:
-                self.list_records(domain_name)
-            elif choice_idx == 1:
-                self.add_record(domain_name)
-            elif choice_idx == 2:
-                self.modify_record(domain_name)
-            elif choice_idx == 3:
-                self.delete_record(domain_name)
-            elif choice_idx == 4 or choice_idx == -1:
-                console.print("\n[bold magenta]👋 感谢使用，再见！[/bold magenta]")
+            if should_exit_app:
                 break
+
+
 
     def list_records(self, domain_name: str) -> Optional[List[Dict[str, Any]]]:
         """Lists DNS records in a stunning Rich Table."""
