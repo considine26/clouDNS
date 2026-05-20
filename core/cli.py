@@ -116,12 +116,6 @@ class DNSHECLI:
 
             self.dns_manager = DNSManager(self.client)
             clear_screen()
-            console.print(Panel(
-                f"[bold green]✔ 账号激活成功！[/bold green]\n"
-                f"当前账户: [cyan]{self.selected_profile_name}[/cyan] (Auth ID: {auth_id})",
-                border_style="green",
-                expand=False
-            ))
 
             # 2. 引导域名选择
             domain_name = ""
